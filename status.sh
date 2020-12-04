@@ -746,7 +746,7 @@ Modify_config_client_liuliang() {
         for line in f.readlines():\n\
             netinfo = re.findall('([^\\\s]+):[\\\s]{0,}(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)\\\s+(\\\d+)', line)\n\
             if netinfo:\n\
-                if netinfo[0][0] == 'lo' or 'tun' in netinfo[0][0] or netinfo[0][1]=='0' or netinfo[0][9]=='0':\n\
+                if netinfo[0][0] == 'lo' or 'tun' in netinfo[0][0] or 'veth' in netinfo[0][0] or 'br' in netinfo[0][0] or netinfo[0][1] == '0' or netinfo[0][9] == '0':\n\
                     continue\n\
                 else:\n\
                     NET_IN += int(netinfo[0][1])\n\
