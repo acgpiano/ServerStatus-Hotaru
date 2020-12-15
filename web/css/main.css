@@ -260,7 +260,7 @@ table {
             visibility: hidden;
         }
 
-        #traffic, tr td:nth-child(8) {
+        #status4, tr td:nth-child(1) {
             display: none;
             visibility: hidden;
         }
@@ -270,7 +270,12 @@ table {
             visibility: hidden;
         }
 
-        #cpu, #ram {
+        #cpu, tr td:nth-child(9) {
+            display: none;
+            visibility: hidden;
+        }
+
+        #ram {
             min-width: 20px;
             max-width: 40px;
         }
