@@ -213,10 +213,10 @@ table {
         visibility: hidden;
     }
 
-    #traffic, tr td:nth-child(8) {
+    /* #traffic, tr td:nth-child(8) {
         display: none;
         visibility: hidden;
-    }
+    } */
 
     #load, tr td:nth-child(6) {
         display: none;
