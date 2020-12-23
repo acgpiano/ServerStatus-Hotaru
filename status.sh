@@ -24,6 +24,7 @@ client_file="/usr/local/ServerStatus/client"
 client_log_file="/tmp/serverstatus_client.log"
 server_log_file="/tmp/serverstatus_server.log"
 jq_file="${file}/jq"
+region_json="${file}/region.json"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[信息]${Font_color_suffix}"
@@ -67,6 +68,16 @@ check_pid_client() {
   #PID=$(ps -ef | grep "status-client.py" | grep -v grep | grep -v ".sh" | grep -v "init.d" | grep -v "service" | awk '{print $2}')
   PID=$(pgrep -f "status-client.py")
 }
+check_region() {
+  if ${jq_file} "[.countries | has(\"${region_s}}\")]" "${region_json}" | grep -q 'true' >/dev/null 2>&1; then
+    return 0
+  elif grep -qw "${region_s}" "${region_json}"; then
+    region_s=$(grep -w "${region_s}" "${region_json}" | sed "s/[[:space:]]//g")
+    region_s=${region_s:1:2}
+    return 0
+  fi
+  return 1
+}
 Download_Server_Status_server() {
   cd "/tmp" || exit
   wget -N --no-check-certificate "https://github.com/acgpiano/ServerStatus-Hotaru/archive/master.zip"
@@ -74,10 +85,10 @@ Download_Server_Status_server() {
   unzip master.zip
   rm -rf master.zip
   [[ ! -e "/tmp/ServerStatus-Hotaru-master" ]] && echo -e "${Error} ServerStatus 服务端解压失败 !" && exit 1
-  cd "/tmp/ServerStatus-Hotaru-master/server" || exit
+  cd "/tmp/ServerStatus-Hotaru-master/server" || exit 1
   make
   [[ ! -e "sergate" ]] && echo -e "${Error} ServerStatus 服务端编译失败 !" && cd "${file_1}" && rm -rf "/tmp/ServerStatus-Hotaru-master" && exit 1
-  cd "${file_1}" || exit
+  cd "${file_1}" || exit 1
   [[ ! -e "${file}" ]] && mkdir "${file}"
   if [[ ! -e "${server_file}" ]]; then
     mkdir "${server_file}"
@@ -106,7 +117,7 @@ Download_Server_Status_client() {
   cd "/tmp" || mkdir "/tmp"
   wget -N --no-check-certificate "https://raw.githubusercontent.com/acgpiano/ServerStatus-Hotaru/master/clients/status-client.py"
   [[ ! -e "status-client.py" ]] && echo -e "${Error} ServerStatus 客户端下载失败 !" && exit 1
-  cd "${file_1}" || exit
+  cd "${file_1}" || exit 1
   [[ ! -e "${file}" ]] && mkdir "${file}"
   if [[ ! -e "${client_file}" ]]; then
     mkdir "${client_file}"
@@ -374,11 +385,14 @@ Set_location() {
   echo "	================================================" && echo
 }
 Set_region() {
-  echo -e "请输入 ServerStatus 服务端要设置的节点区域[region]（用于国旗/区旗图片显示）"
+  echo -e "请输入 ServerStatus 服务端要设置的节点地区[region]（用于国家/地区的旗帜图标显示）"
   read -erp "(默认: HK):" region_s
   [[ -z "$region_s" ]] && region_s="HK"
+  while ! check_region; do
+    read -erp "你输入的节点地区不合法，请重新输入：" region_s
+  done
   echo && echo "	================================================"
-  echo -e "	节点位置[region]: ${Red_background_prefix} ${region_s} ${Font_color_suffix}"
+  echo -e "	节点地区[region]: ${Red_background_prefix} ${region_s} ${Font_color_suffix}"
   echo "	================================================" && echo
 }
 Set_config_server() {
@@ -601,7 +615,7 @@ Modify_ServerStatus_server_region() {
     Set_region_num_a=$((Set_username_num + 7))
     Set_region_num_a_text=$(sed -n "${Set_region_num_a}p" ${server_conf} | sed 's/\"//g;s/,$//g' | awk -F ": " '{print $2}')
     sed -i "${Set_region_num_a}"'s/"region": "'"${Set_region_num_a_text}"'"/"region": "'"${region_s}"'"/g' ${server_conf}
-    echo -e "${Info} 修改成功 [ 原节点区域: ${Set_region_num_a_text}, 新节点区域: ${region_s} ]"
+    echo -e "${Info} 修改成功 [ 原节点地区: ${Set_region_num_a_text}, 新节点地区: ${region_s} ]"
   else
     echo -e "${Error} 请输入正确的节点用户名 !" && exit 1
   fi
@@ -678,9 +692,10 @@ Install_vnStat() {
     apt-get -y update
     apt-get -y install sqlite3 libsqlite3-dev make build-essential
   fi
+  cd "/tmp" || return 1
   wget --no-check-certificate https://humdi.net/vnstat/vnstat-latest.tar.gz
   tar zxvf vnstat-latest.tar.gz
-  cd vnstat-*/ || return
+  cd vnstat-*/ || return 1
   ./configure --prefix=/usr --sysconfdir=/etc && make && make install
   if ! vnstat -v >/dev/null 2>&1; then
     echo "编译vnStat失败，请手动安装vnStat"
@@ -699,33 +714,35 @@ Install_vnStat() {
     update-rc.d vnstat defaults
     service vnstat restart
   fi
+  rm -rf vnstat*
+  cd ~ || exit
 }
 Modify_config_client_liuliang() {
   if [[ ${isVnstat} == [Yy] ]]; then
     if ! vnstat -v >/dev/null 2>&1; then
       Install_vnStat
-    else
-      netName=$(awk '{i++; if( i>2 && ($2 != 0 && $10 != 0) ){print $1}}' /proc/net/dev | sed 's/^lo:$//g' | sed 's/^tun:$//g' | sed '/^$/d' | sed 's/^[\t]*//g' | sed 's/[:]*$//g')
-      if [ -z "$netName" ]; then
-        echo "获取网卡名称失败，请在Github反馈"
-        exit 1
-      fi
-      if [[ $netName =~ [[:space:]] ]]; then
-        read -erp "检测到多个网卡: ${netName}，请手动输入网卡名称" netName
-      fi
-      read -erp "请输入每月流量归零的日期(1~28)，默认为1(即每月1日): " time_N
-      [[ -z "$time_N" ]] && time_N="1"
-      while ! [[ $time_N =~ ^[0-9]*$ ]] || ((time_N < 1 || time_N > 28)); do
-        read -erp "你输入的日期不合法，请重新输入: " time_N
-      done
-      sed -i "s/$(grep -w "MonthRotate" /etc/vnstat.conf)/MonthRotate $time_N/" /etc/vnstat.conf
-      sed -i "s/$(grep -w "Interface" /etc/vnstat.conf)/Interface \"$netName\"/" /etc/vnstat.conf
-      service vnstat restart
-      chmod -R 777 /var/lib/vnstat/
-      service vnstat restart
-      if ! grep -q "vnstat" ${client_file}/status-client.py; then
-        sed -i 's/\t/    /g' ${client_file}/status-client.py
-        vnstat_py="\
+    fi
+    netName=$(awk '{i++; if( i>2 && ($2 != 0 && $10 != 0) ){print $1}}' /proc/net/dev | sed 's/^lo:$//g' | sed 's/^tun:$//g' | sed '/^$/d' | sed 's/^[\t]*//g' | sed 's/[:]*$//g')
+    if [ -z "$netName" ]; then
+      echo "获取网卡名称失败，请在Github反馈"
+      exit 1
+    fi
+    if [[ $netName =~ [[:space:]] ]]; then
+      read -erp "检测到多个网卡: ${netName}，请手动输入网卡名称" netName
+    fi
+    read -erp "请输入每月流量归零的日期(1~28)，默认为1(即每月1日): " time_N
+    [[ -z "$time_N" ]] && time_N="1"
+    while ! [[ $time_N =~ ^[0-9]*$ ]] || ((time_N < 1 || time_N > 28)); do
+      read -erp "你输入的日期不合法，请重新输入: " time_N
+    done
+    sed -i "s/$(grep -w "MonthRotate" /etc/vnstat.conf)/MonthRotate $time_N/" /etc/vnstat.conf
+    sed -i "s/$(grep -w "Interface" /etc/vnstat.conf)/Interface \"$netName\"/" /etc/vnstat.conf
+    service vnstat restart
+    chmod -R 777 /var/lib/vnstat/
+    service vnstat restart
+    if ! grep -q "vnstat" ${client_file}/status-client.py; then
+      sed -i 's/\t/    /g' ${client_file}/status-client.py
+      vnstat_py="\
     NET_IN = 0\n\
     NET_OUT = 0\n\
     vnstat = os.popen('vnstat --oneline b').readline()\n\
@@ -733,9 +750,8 @@ Modify_config_client_liuliang() {
     NET_IN = int(mdata[8])\n\
     NET_OUT = int(mdata[9])\n\
     return NET_IN, NET_OUT"
-        sed -i "/NET_IN\ =\ 0/,/return\ NET_IN/d" ${client_file}/status-client.py
-        sed -i "/def\ liuliang():/a\\$vnstat_py" ${client_file}/status-client.py
-      fi
+      sed -i "/NET_IN\ =\ 0/,/return\ NET_IN/d" ${client_file}/status-client.py
+      sed -i "/def\ liuliang():/a\\$vnstat_py" ${client_file}/status-client.py
     fi
   elif grep -q "vnstat" ${client_file}/status-client.py; then
     sed -i 's/\t/    /g' ${client_file}/status-client.py
@@ -775,6 +791,10 @@ Install_jq() {
     echo -e "${Info} JQ解析器 安装完成，继续..."
   else
     echo -e "${Info} JQ解析器 已安装，继续..."
+  fi
+  if [[ ! -e ${region_json} ]]; then
+    wget --no-check-certificate "https://raw.githubusercontent.com/michaelwittig/node-i18n-iso-countries/master/langs/zh.json" -O ${region_json}
+    [[ ! -e ${region_json} ]] && echo -e "${Error} ISO 3166-1 json文件下载失败，请检查！" && exit 1
   fi
 }
 Install_caddy() {
