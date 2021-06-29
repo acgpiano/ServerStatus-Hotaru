@@ -105,7 +105,7 @@ class Traffic:
 
         for dev in net_dev[2:]:
             dev = dev.split(':')
-            if dev[0].strip() == "lo" or dev[0].find("tun") > -1 or dev[0].find("veth") > -1 or dev[0].find("br") > -1:
+            if dev[0].strip() == "lo" or dev[0].find("tun") > -1 or dev[0].find("veth") > -1 or dev[0].find("br") > -1 or dev[0].find("docker") > -1:
                 continue
             dev = dev[1].split()
             avgrx += int(dev[0])
@@ -136,7 +136,7 @@ def liuliang():
                 '([^\s]+):[\s]{0,}(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)',
                 line)
             if netinfo:
-                if netinfo[0][0] == 'lo' or 'tun' in netinfo[0][0] or 'veth' in netinfo[0][0] or 'br' in netinfo[0][0] or netinfo[0][1] == '0' or netinfo[0][9] == '0':
+                if netinfo[0][0] == 'lo' or 'tun' in netinfo[0][0] or 'veth' in netinfo[0][0] or 'br' in netinfo[0][0] or 'docker' in netinfo[0][0] or netinfo[0][1] == '0' or netinfo[0][9] == '0':
                     continue
                 else:
                     NET_IN += int(netinfo[0][1])
